@@ -338,7 +338,7 @@ class MixtureBetaBinomial:
         raise Exception(
             'Invalid initialization method {}, please specify one of "kmeans", "mixbin", "random"'.format(init_method))
 
-    def EM(self, data, max_iters=250, init_method=None, early_stop=False, verbose=False):
+    def EM(self, data, max_iters=250, init_method="mixbin", early_stop=True, verbose=False):
         """EM algorithim
 
         Args:
