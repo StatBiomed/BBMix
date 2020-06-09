@@ -14,9 +14,10 @@ from scipy.stats import bernoulli, betabinom
 from sklearn.cluster import KMeans
 
 from .binomial_mix import MixtureBinomial
+from .model_base import ModelBase
 
 
-class MixtureBetaBinomial:
+class MixtureBetaBinomial(ModelBase):
     """Mixture of Beta-Binomial Models
 
     This class implements EM algorithm for parameter estimation of Mixture 
@@ -31,6 +32,7 @@ class MixtureBetaBinomial:
             None before parameter estimation.
         losses (list): list of negative loglikelihood losses of the training 
             process, None before parameter estimation.
+        model_scores (dict): scores for the model, including "BIC" and "ICL" scores
 
     Notes
     -----
@@ -97,8 +99,6 @@ class MixtureBetaBinomial:
         self.n_components = n_components
         self.max_m_step_iter = max_m_step_iter
         self.tor = tor
-        self.params = None
-        self.losses = None
 
     def log_likelihood_betabin(self, y, n, a, b, pi=1.0):
         """log likelihood of data under a component of beta-binomial distribution
@@ -384,6 +384,7 @@ class MixtureBetaBinomial:
                     print("Improvement halts, early stop training.")
                 break
 
+        self.score_model(len(params), len(y), losses[-1], E_gammas)
         self.params = params
         self.losses = losses[1:]
         return params
@@ -415,8 +416,11 @@ if __name__ == "__main__":
     params = em_mbb.EM((ys, ns), max_iters=200,
                        init_method="random", early_stop=False)
     print(params)
+    print(em_mbb.model_scores)
     params = em_mbb.EM((ys, ns), max_iters=200, init_method="kmeans")
     print(params)
+    print(em_mbb.model_scores)
     params = em_mbb.EM((ys, ns), max_iters=200, init_method="mixbin")
     print(params)
+    print(em_mbb.model_scores)
     print(alphas, betas, pis)
