@@ -13,7 +13,7 @@ from scipy.special import beta, gammaln, logsumexp
 from scipy.stats import bernoulli, betabinom
 from sklearn.cluster import KMeans
 
-from binomial_mix import MixtureBinomial
+from .binomial_mix import MixtureBinomial
 
 
 class MixtureBetaBinomial:
