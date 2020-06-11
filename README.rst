@@ -19,4 +19,4 @@ Python environment.
 Quick start
 ===========
 
-Please see the `jupyter notebook<http://www.python.org/>`_ located in *./examples* for reference.
+Please see the `jupyter notebook <https://github.com/StatBiomed/BBMix/blob/master/examples/MixtureOfBetaBin_example.ipynb>`_ located in *./examples* for reference.
