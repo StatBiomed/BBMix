@@ -19,4 +19,4 @@ Python environment.
 Quick start
 ===========
 
-Coming soon...
+Please see the `jupyter notebook<http://www.python.org/>`_ located in *./examples* for reference.
