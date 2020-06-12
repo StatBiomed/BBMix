@@ -299,9 +299,15 @@ class MixtureBetaBinomial(ModelBase):
         mb_params = em_mb.EM((y, n), max_iters=50, early_stop=True)
         gammars = em_mb.E_step(y, n, mb_params)
 
-        params = np.concatenate([np.random.uniform(0.6, 0.9, self.n_components),
-                                 np.random.uniform(
-                                     0.6, 0.9, self.n_components),
+        # alpha + beta = concentration
+        # alpha/(alpha + beta) = p
+        ps = mb_params[:self.n_components]
+        concentrations = np.random.uniform(9.0, 11.0, self.n_components)
+        init_alphas = ps * concentrations
+        init_betas = (1-ps) * concentrations
+
+        params = np.concatenate([init_alphas,
+                                 init_betas,
                                  mb_params[self.n_components:]
                                  ])
         return gammars, params
