@@ -344,7 +344,8 @@ class MixtureBetaBinomial(ModelBase):
         raise Exception(
             'Invalid initialization method {}, please specify one of "kmeans", "mixbin", "random"'.format(init_method))
 
-    def EM(self, data, max_iters=250, init_method="mixbin", early_stop=True, verbose=False):
+    def EM(self, data, max_iters=250, init_method="mixbin", early_stop=True, 
+           pseudocount=1, verbose=False):
         """EM algorithim
 
         Args:
@@ -352,6 +353,7 @@ class MixtureBetaBinomial(ModelBase):
             max_iters (int): maximum number of iterations for EM. Defaults to 250.
             init_method (string): one of the initialization methods: "kmeans", "mixbin", or "random"
             early_stop (bool): whether early stop training. Defaults to False.
+            pseudocount (float) : add pseudocount if data is zero
             verbose (bool): whether print training information. Defaults to False.
 
         Returns:
@@ -359,6 +361,11 @@ class MixtureBetaBinomial(ModelBase):
         """
 
         y, n = data
+        y, n = y[n > 0], n[n > 0] # remove zero trials
+        if np.sum(y == 0):
+            y = y.astype(float)
+            y[y == 0] = pseudocount
+
         losses = [sys.maxsize]
         params = self._param_init(y, n, init_method)
 
@@ -394,6 +401,30 @@ class MixtureBetaBinomial(ModelBase):
         self.params = params
         self.losses = losses[1:]
         return params
+
+    def sample(self, n_trials):
+        """Generate data from fitted parameters
+        n_trails :
+        Args:
+            n_trails (array_like): total number of trials
+
+        Returns:
+            np.array: ys generated from the fitted distribution
+        """
+        if hasattr(self, 'params') == False:
+            print("Error: please fit the model or set params before sample()")
+
+        alphas = self.params[:self.n_components]
+        betas  = self.params[self.n_components : 2*self.n_components]
+        pis    = self.params[2*self.n_components : 3*self.n_components]
+        
+        labels = np.random.choice(self.n_components, size=n_trials.shape, p=pis)
+        ys_out = np.zeros(n_trials.shape, dtype=int)
+        for i in range(self.n_components):
+            _idx = np.where(labels == i)
+            ys_out[_idx] = betabinom.rvs(n_trials[_idx], alphas[i], betas[i])
+
+        return ys_out
 
 
 if __name__ == "__main__":
