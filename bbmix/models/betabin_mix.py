@@ -173,6 +173,8 @@ class MixtureBetaBinomial(ModelBase):
         nll_fun = self._get_nnl_fun()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
+            state = np.random.get_state()
+            np.random.seed(42)
             res = minimize(nll_fun, x0=params,
                            args=(y, n, E_gammas, self.n_components),
                            bounds=bounds,
@@ -181,6 +183,7 @@ class MixtureBetaBinomial(ModelBase):
                                     'maxiter': self.max_m_step_iter},
                            constraints=constraints  # for solvers: COBYLA, SLSQP and trust-constr
                            )
+            np.random.set_state(state)
         return res
 
     def _get_constraints(self):
@@ -340,6 +343,14 @@ class MixtureBetaBinomial(ModelBase):
         if init_method == "mixbin":
             E_gammas, params = self._init_with_mixbin(y, n)
             return self.M_step(y, n, E_gammas, params).x
+        # for inner test
+        if init_method == "fixed":
+            params = np.concatenate([
+                np.ones(2*self.n_components, dtype=np.float),
+                np.ones(self.n_components, dtype=np.float) * 0.6
+            ])
+            return params
+
 
         raise Exception(
             'Invalid initialization method {}, please specify one of "kmeans", "mixbin", "random"'.format(init_method))
