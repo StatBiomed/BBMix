@@ -121,6 +121,7 @@ class MixtureBinomial(ModelBase):
         """
         N_samples = len(n)
         for k in range(self.n_components):
+            E_gammas[k][E_gammas[k] == 0] = 1e-20
             params[k] = np.sum(y * E_gammas[k]) / np.sum(n * E_gammas[k])
             params[k+self.n_components] = np.sum(E_gammas[k]) / N_samples
         return params
