@@ -223,7 +223,7 @@ class MixtureBinomial(ModelBase):
             np.array: ys generated from the fitted distribution
         """
         if hasattr(self, 'params') == False:
-            print("Error: please fit the model or set params before sample()")
+            raise Exception("Error: please fit the model or set params before sample()")
 
         mus = self.params[:self.n_components]
         pis = self.params[self.n_components : 2*self.n_components]
@@ -232,7 +232,7 @@ class MixtureBinomial(ModelBase):
         ys_out = np.zeros(n_trials.shape, dtype=int)
         for i in range(self.n_components):
             _idx = np.where(labels == i)
-            ys_out[_idx] = binom.rvs(n_trials[_idx], mus[i])
+            ys_out[_idx] = binom.rvs(n_trials[_idx].astype(np.int32), mus[i])
         
         return ys_out
 

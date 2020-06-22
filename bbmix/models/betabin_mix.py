@@ -423,17 +423,17 @@ class MixtureBetaBinomial(ModelBase):
             np.array: ys generated from the fitted distribution
         """
         if hasattr(self, 'params') == False:
-            print("Error: please fit the model or set params before sample()")
+            raise Exception("Error: please fit the model or set params before sample()")
 
         alphas = self.params[:self.n_components]
         betas  = self.params[self.n_components : 2*self.n_components]
         pis    = self.params[2*self.n_components : 3*self.n_components]
         
         labels = np.random.choice(self.n_components, size=n_trials.shape, p=pis)
-        ys_out = np.zeros(n_trials.shape, dtype=int)
+        ys_out = np.zeros(n_trials.shape, dtype=np.int32)
         for i in range(self.n_components):
             _idx = np.where(labels == i)
-            ys_out[_idx] = betabinom.rvs(n_trials[_idx], alphas[i], betas[i])
+            ys_out[_idx] = betabinom.rvs(n_trials[_idx].astype(np.int32), alphas[i], betas[i])
 
         return ys_out
 
