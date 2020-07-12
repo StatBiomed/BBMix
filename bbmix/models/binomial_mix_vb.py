@@ -15,7 +15,7 @@ class BinomialMixVB():
     """BinMixVB model: Variational Inference for binomial mixture model
     The prior can be set via set_prior() before fitting the model.
     """
-    def __init__(self, n_obs, n_var=1, n_components=1, per_var=False, 
+    def __init__(self, n_obs, n_var=1, n_components=1, 
         fix_beta_sum=False, fix_pi=False):
         """Initialise Vireo model
         Note, multiple initializations are highly recomended to avoid local 
@@ -39,7 +39,6 @@ class BinomialMixVB():
         self.n_components = n_components
         self.K = self.n_components # for short cut
 
-        self.per_var = per_var
         self.fix_pi = fix_pi
         self.fix_beta_sum = fix_beta_sum
         
