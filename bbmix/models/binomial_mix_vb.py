@@ -16,7 +16,7 @@ class BinomialMixVB():
     The prior can be set via set_prior() before fitting the model.
     """
     def __init__(self, n_obs, n_var=1, n_components=1, 
-        fix_beta_sum=False, fix_pi=False):
+        fix_theta_sum=False, fix_pi=False):
         """Initialise Vireo model
         Note, multiple initializations are highly recomended to avoid local 
         optima.
@@ -29,7 +29,7 @@ class BinomialMixVB():
             Number of variables, i.e., features or dimensions
         n_components : int
             Number of mixture components
-        fix_beta_sum: bool
+        fix_theta_sum: bool
             Whether fix the concetration parameter of theta's posterior
         fix_pi: bool
             Whether fix the pi to the initial value
@@ -40,21 +40,21 @@ class BinomialMixVB():
         self.K = self.n_components # for short cut
 
         self.fix_pi = fix_pi
-        self.fix_beta_sum = fix_beta_sum
+        self.fix_theta_sum = fix_theta_sum
         
         # initial values by random initial
         self.set_init()
         self.set_prior()
         self.ELBO_ = np.zeros((0))
 
-    def set_init(self, beta_mu=None, beta_sum=None, pi_size=None, Z=None):
+    def set_init(self, theta_mu=None, theta_sum=None, pi_size=None, Z=None):
         """Set initial values of the parameters to fit
 
         Key properties
         --------------
-        beta_mu: numpy.array (n_var, n_components)
+        theta_mu: numpy.array (n_var, n_components)
             Mean of Beta distribution as theta's posterior
-        beta_sum: numpy.array (n_var, n_components)
+        theta_sum: numpy.array (n_var, n_components)
             Concetration Beta distribution as theta's posterior
         Z: numpy.array (n_obs, n_components)
             Assignment probability of each observation to each cluster
@@ -62,15 +62,15 @@ class BinomialMixVB():
             Dirichlet parameters for posterior of cluster proportion
         """
         # initial key parameters
-        if beta_mu is not None:
-            self.beta_mu = beta_mu
+        if theta_mu is not None:
+            self.theta_mu = theta_mu
         else:
-            self.beta_mu = np.random.uniform(size=(self.n_var, self.K))
+            self.theta_mu = np.random.uniform(size=(self.n_var, self.K))
 
-        if beta_sum is not None:
-            self.beta_sum = beta_sum
+        if theta_sum is not None:
+            self.theta_sum = theta_sum
         else:
-            self.beta_sum = np.random.uniform(3, 10, size=(self.n_var, self.K))
+            self.theta_sum = np.random.uniform(3, 10, size=(self.n_var, self.K))
 
         if Z is not None:
             self.Z_loglik = np.log(normalize(Z))
@@ -83,22 +83,17 @@ class BinomialMixVB():
             self.pi_size = np.ones((self.K))
     
     
-    def set_prior(self, beta_mu_prior=None, beta_sum_prior=None, 
-                  pi_prior=None, Z_prior=None):
+    def set_prior(self, theta_mu_prior=None, theta_sum_prior=None, 
+                  pi_prior=None):
         """Set parameters of prior distribution for key variables:theta, pi, Z. 
         The prior parameters are in the form of its according posterior
         """
-        if beta_mu_prior is None:
-            beta_mu_prior = np.ones((self.n_var, self.K)) * 0.5
-        if beta_sum_prior is None:
-            beta_sum_prior = np.ones(beta_mu_prior.shape) * 2
-        self.theta_s1_prior = beta_mu_prior * beta_sum_prior
-        self.theta_s2_prior = (1 - beta_mu_prior) * beta_sum_prior
-
-        if Z_prior is not None:
-            self.Z_prior = Z_prior
-        else:
-            self.Z_prior = np.ones(self.Z.shape) / self.K
+        if theta_mu_prior is None:
+            theta_mu_prior = np.ones((self.n_var, self.K)) * 0.5
+        if theta_sum_prior is None:
+            theta_sum_prior = np.ones(theta_mu_prior.shape) * 2
+        self.theta_s1_prior = theta_mu_prior * theta_sum_prior
+        self.theta_s2_prior = (1 - theta_mu_prior) * theta_sum_prior
 
         if pi_prior is not None:
             self.pi_prior = pi_prior
@@ -108,12 +103,12 @@ class BinomialMixVB():
     @property
     def theta_s1(self):
         """Beta concetration1 parameter for theta posterior"""
-        return self.beta_mu * self.beta_sum
+        return self.theta_mu * self.theta_sum
 
     @property
     def theta_s2(self):
         """Beta concetration2 parameter for theta posterior"""
-        return (1 - self.beta_mu) * self.beta_sum
+        return (1 - self.theta_mu) * self.theta_sum
 
     @property
     def pi(self):
@@ -122,6 +117,10 @@ class BinomialMixVB():
     @property
     def Z(self):
         return normalize_exp(self.Z_loglik)
+
+    @property
+    def Z_prior(self):
+        return np.tile(self.pi, (self.n_obs, 1))
     
     def update_theta_size(self, AD, DP):
         """Coordinate ascent for updating theta posterior parameters
@@ -130,9 +129,9 @@ class BinomialMixVB():
         _theta_s1 = self.theta_s1_prior + AD * self.Z
         _theta_s2 = self.theta_s2_prior + BD * self.Z
 
-        self.beta_mu = _theta_s1 / (_theta_s1 + _theta_s2)
-        if self.fix_beta_sum == False:
-            self.beta_sum = _theta_s1 + _theta_s2
+        self.theta_mu = _theta_s1 / (_theta_s1 + _theta_s2)
+        if self.fix_theta_sum == False:
+            self.theta_sum = _theta_s1 + _theta_s2
         
     def update_pi_size(self):
         """Coordinate ascent for updating pi posterior parameters
