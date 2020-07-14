@@ -4,6 +4,8 @@
 Chen Qiao: cqiao@connect.hku.hk
 """
 
+import numpy as np
+
 from .statistics import bic_criterion, entropy_criterion
 
 
@@ -37,3 +39,20 @@ class ModelBase:
         icl_score = bic_score + entropy_score
         self.model_scores = {"BIC": bic_score, "ICL": icl_score}
         return self.model_scores
+
+    def _preprocess(self, data, pseudocount=0.1):
+        """Preprocess inputs
+
+        Args:
+            data (tuple of arrays): y, n: number of positive events and total number of trials respectively
+            pseudocount (float) : add pseudocount if data is zero
+
+        Returns
+            tuple of np.array
+        """
+        y, n = data
+        y, n = y[n > 10], n[n > 10]  # filter extremes
+        if np.any(0):
+            y = y.astype(float)
+            y[y == 0] = pseudocount
+        return y, n

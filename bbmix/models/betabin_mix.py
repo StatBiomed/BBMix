@@ -76,7 +76,7 @@ class MixtureBetaBinomial(ModelBase):
             max_m_step_iter=250,
             tor=1e-6)
 
-        params = em_mbb.EM((ys, ns), max_iters=200, warm_init="mixbin")
+        params = em_mbb.fit((ys, ns), max_iters=200, init_methods="mixbin")
         print(params)
         print(alphas, betas, pis)
 
@@ -85,7 +85,8 @@ class MixtureBetaBinomial(ModelBase):
     def __init__(self,
                  n_components=2,
                  max_m_step_iter=250,
-                 tor=1e-6
+                 tor=1e-6,
+                 n_init_searches=100
                  ):
         """Initialization method
 
@@ -94,11 +95,13 @@ class MixtureBetaBinomial(ModelBase):
             max_m_step_iter (int): maximum number iterations for the sub-optimiaztion 
                 routine at M-step. Defaults to 250.
             tor ([type], optional): [description]. Defaults to 1e-6.
+            n_init_searches (int): number of trials for good param initial values
         """
         super(MixtureBetaBinomial, self).__init__()
         self.n_components = n_components
         self.max_m_step_iter = max_m_step_iter
         self.tor = tor
+        self.n_init_searches = n_init_searches
 
     def log_likelihood_betabin(self, y, n, a, b, pi=1.0):
         """log likelihood of data under a component of beta-binomial distribution
@@ -113,8 +116,8 @@ class MixtureBetaBinomial(ModelBase):
         Returns:
             np.array: log_likelihood of data
         """
-        return gammaln(y+a) + gammaln(n-y+b) + gammaln(a+b) - \
-            (gammaln(a) + gammaln(b) + gammaln(n+a+b)) + np.log(pi)
+        return gammaln(y + a) + gammaln(n - y + b) + gammaln(a + b) - \
+               (gammaln(a) + gammaln(b) + gammaln(n + a + b)) + np.log(pi)
 
     def log_likelihood_mixbetabin(self, y, n, params):
         """log likelihood of the dataset under mixture beta-binomial distribution
@@ -130,7 +133,7 @@ class MixtureBetaBinomial(ModelBase):
         logLik_mat = np.zeros((len(y), self.n_components), dtype=float)
         for k in range(self.n_components):
             a, b, pi = params[k], params[k +
-                                         self.n_components], params[k+2*self.n_components]
+                                         self.n_components], params[k + 2 * self.n_components]
             logLik_mat[:, k] = self.log_likelihood_betabin(y, n, a, b, pi)
         return logsumexp(logLik_mat, axis=1).sum()
 
@@ -148,9 +151,9 @@ class MixtureBetaBinomial(ModelBase):
         log_E_gammas = [None] * self.n_components
         for k in range(self.n_components):
             a, b, pi = params[k], params[k +
-                                         self.n_components], params[k+2*self.n_components]
-            log_E_gammas[k] = np.log(pi) + gammaln(y+a) + gammaln(n-y+b) + gammaln(a+b) - \
-                (gammaln(a) + gammaln(b) + gammaln(n+a+b))
+                                         self.n_components], params[k + 2 * self.n_components]
+            log_E_gammas[k] = np.log(pi) + gammaln(y + a) + gammaln(n - y + b) + gammaln(a + b) - \
+                              (gammaln(a) + gammaln(b) + gammaln(n + a + b))
 
         # normalize as they haven't been
         log_E_gammas = log_E_gammas - logsumexp(log_E_gammas, axis=0)
@@ -168,33 +171,37 @@ class MixtureBetaBinomial(ModelBase):
         Returns:
             np.array: updated model parameters
         """
-        constraints = self._get_constraints()
+        params = self._update_pis(E_gammas, params, len(n))
         bounds = self._get_bounds()
         nll_fun = self._get_nnl_fun()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             state = np.random.get_state()
             np.random.seed(42)
-            res = minimize(nll_fun, x0=params,
-                           args=(y, n, E_gammas, self.n_components),
+            res = minimize(nll_fun, x0=params[:2 * self.n_components],
+                           args=(y, n, E_gammas, self.n_components,
+                                 params[2 * self.n_components:3 * self.n_components]),
                            bounds=bounds,
-                           method='SLSQP',
+                           method='L-BFGS-B',  # 'SLSQP',
                            options={'disp': False,
                                     'maxiter': self.max_m_step_iter},
-                           constraints=constraints  # for solvers: COBYLA, SLSQP and trust-constr
                            )
             np.random.set_state(state)
-        return res
+        params[:2 * self.n_components] = res.x
+        return params
 
-    def _get_constraints(self):
-        """generate constraints for pis: $\sum_{\pi_k} = 1$
+    def _update_pis(self, E_gammas, params, N_samples):
+        """analytics updates for pis:
+            $\pi_k = \frac{\sum_{i=1}^N \hat{\gamma}_K^{i}}
+            {\sum_{i=1}^N \sum_{k=1}^K \hat{\gamma}_K^{i}}$
 
         Returns:
-            tuple of dict: constraints in the input format of Scipy minimize function 
+            list of floats: updated params
         """
-        constraints = ({'type': 'eq', 'fun': lambda params: np.sum(
-            params[2*self.n_components:]) - 1})
-        return constraints
+        for k in range(self.n_components):
+            E_gammas[k][E_gammas[k] == 0] = 1e-20
+            params[2 * self.n_components + k] = np.sum(E_gammas[k]) / N_samples
+        return params
 
     def _get_bounds(self):
         """generate none-negative bounds for model parameters
@@ -202,12 +209,13 @@ class MixtureBetaBinomial(ModelBase):
         Returns:
             list of tuples: non-negative bounds in the input format of Scipy minimize function 
         """
-        bounds = [(0, None)] * (3*self.n_components)
+        bounds = [(0, None)] * (2 * self.n_components)
         return tuple(bounds)
 
     def _get_nnl_fun(self):
         """get the loss function required by Scipy minimize function
         """
+
         def neg_log_likelihood(params, *args):
             """negative log likelihood for M-step optimization
 
@@ -224,14 +232,16 @@ class MixtureBetaBinomial(ModelBase):
             y, n = args[0], args[1]
             E_gammas = args[2]
             n_components = args[3]
+            pis = args[4]
 
             log_likelihood = 0
             for k in range(n_components):
                 a, b, pi = params[k], params[k +
-                                             n_components], params[k+2*n_components]
+                                             n_components], pis[k]
                 E_gamma_k = E_gammas[k]
-                log_pdf = E_gamma_k * (np.log(pi) + gammaln(n+1) + gammaln(y+a) + gammaln(n-y+b) + gammaln(a+b) -
-                                       (gammaln(y+1) + gammaln(n-y+1) + gammaln(a) + gammaln(b) + gammaln(n+a+b)))
+                log_pdf = E_gamma_k * (
+                        np.log(pi) + gammaln(n + 1) + gammaln(y + a) + gammaln(n - y + b) + gammaln(a + b) -
+                        (gammaln(y + 1) + gammaln(n - y + 1) + gammaln(a) + gammaln(b) + gammaln(n + a + b)))
                 log_likelihood += np.sum(log_pdf)
             return -log_likelihood
 
@@ -299,7 +309,7 @@ class MixtureBetaBinomial(ModelBase):
             n_components=self.n_components,
             tor=1e-6,
         )
-        mb_params = em_mb.EM((y, n), max_iters=50, early_stop=True)
+        mb_params = em_mb.fit((y, n), max_iters=100, early_stop=True)
         gammars = em_mb.E_step(y, n, mb_params)
 
         # alpha + beta = concentration
@@ -307,7 +317,7 @@ class MixtureBetaBinomial(ModelBase):
         ps = mb_params[:self.n_components]
         concentrations = np.random.uniform(9.0, 11.0, self.n_components)
         init_alphas = ps * concentrations
-        init_betas = (1-ps) * concentrations
+        init_betas = (1 - ps) * concentrations
 
         params = np.concatenate([init_alphas,
                                  init_betas,
@@ -333,31 +343,80 @@ class MixtureBetaBinomial(ModelBase):
         """
         if init_method == "random":
             params = np.concatenate([
-                np.random.uniform(0.6, 0.9, 2*self.n_components),
+                np.random.uniform(0.6, 0.9, 2 * self.n_components),
                 np.random.uniform(0.4, 0.6, self.n_components)
             ])
             return params
         if init_method == "kmeans":
             E_gammas, params = self._init_with_kmeans(y, n)
-            return self.M_step(y, n, E_gammas, params).x
+            return self.M_step(y, n, E_gammas, params)
         if init_method == "mixbin":
             E_gammas, params = self._init_with_mixbin(y, n)
-            return self.M_step(y, n, E_gammas, params).x
+            return self.M_step(y, n, E_gammas, params)
         # for inner test
         if init_method == "fixed":
             params = np.concatenate([
-                np.ones(2*self.n_components, dtype=np.float),
+                np.ones(2 * self.n_components, dtype=np.float),
                 np.ones(self.n_components, dtype=np.float) * 0.6
             ])
             return params
 
-
         raise Exception(
             'Invalid initialization method {}, please specify one of "kmeans", "mixbin", "random"'.format(init_method))
 
-    def EM(self, data, max_iters=250, init_method="mixbin", early_stop=True, 
-           pseudocount=0.1, verbose=False):
+    def EM(self, y, n, params, max_iters=250, early_stop=True,
+           verbose=False, n_tolerance=10):
         """EM algorithim
+
+        Args:
+            y (np.array): number of positive events
+            n (np.array): total number of trials respectively
+            max_iters (int): maximum number of iterations for EM. Defaults to 250.
+            params (np.array): init params.
+            early_stop (bool): whether early stop training. Defaults to False.
+            verbose (bool): whether print training information. Defaults to False.
+            n_tolerance (int): the max number of violations to trigger early stop.
+
+        Returns:
+            np.array: trained parameters
+        """
+        n_tol = n_tolerance
+        losses = [sys.maxsize]
+
+        for ith in range(max_iters):
+            # E step
+            E_gammas = self.E_step(y, n, params)
+            # M step
+            params = self.M_step(y, n, E_gammas, params)
+
+            # current NLL loss
+            losses.append(-self.log_likelihood_mixbetabin(y, n, params))
+
+            if verbose:
+                print("=" * 10, "Iteration {}".format(ith + 1), "=" * 10)
+                print("Current params: {}".format(params))
+                print("Negative LogLikelihood Loss: {}".format(losses[-1]))
+                print("=" * 25)
+
+            improvement = losses[-2] - losses[-1]
+            if early_stop:
+                if improvement < self.tor:
+                    n_tol -= 1
+                else:
+                    n_tol = n_tolerance
+                if n_tol == 0:
+                    if verbose:
+                        print("Improvement halts, early stop training.")
+                    break
+
+        self.score_model(len(params), len(y), losses[-1], E_gammas)
+        self.params = params
+        self.losses = losses[1:]
+        return params
+
+    def fit(self, data, max_iters=250, init_method="mixbin", early_stop=False,
+            pseudocount=0.1, n_tolerance=5, verbose=False):
+        """model training.
 
         Args:
             data (tuple of arrays): y, n: number of positive events and total number of trials respectively
@@ -365,52 +424,28 @@ class MixtureBetaBinomial(ModelBase):
             init_method (string): one of the initialization methods: "kmeans", "mixbin", or "random"
             early_stop (bool): whether early stop training. Defaults to False.
             pseudocount (float) : add pseudocount if data is zero
+            n_tolerance (int): the max number of violations to trigger early stop.
             verbose (bool): whether print training information. Defaults to False.
 
-        Returns:
+        Returns
             np.array: trained parameters
         """
+        y, n = self._preprocess(data, pseudocount)
 
-        y, n = data
-        y, n = y[n > 0], n[n > 0] # remove zero trials
-        if np.sum(y == 0):
-            y = y.astype(float)
-            y[y == 0] = pseudocount
-
-        losses = [sys.maxsize]
-        params = self._param_init(y, n, init_method)
-
+        best_param, losses = None, [sys.maxsize]
+        for _ in range(self.n_init_searches):
+            init_params = self._param_init(y, n, init_method)
+            self.EM(y, n, init_params, max_iters=500, early_stop=True)
+            if self.losses[-1] < losses[-1]:
+                best_param, losses = init_params, self.losses
         if verbose:
-            print("="*25)
-            print("Init params: {}".format(params))
-            print("="*25)
-
-        for ith in range(max_iters):
-            # E step
-            E_gammas = self.E_step(y, n, params)
-            # M step
-            res = self.M_step(y, n, E_gammas, params)
-            params = res.x
-
-            # current NLL loss
-            losses.append(-self.log_likelihood_mixbetabin(y, n, params))
-
-            if verbose:
-                print("="*10, "Iteration {}".format(ith+1), "="*10)
-                print("Current params: {}".format(params))
-                print("Negative LogLikelihood Loss: {}".format(losses[-1]))
-                print("="*25)
-
-            # comment out
-            improvement = losses[-2] - losses[-1]
-            if early_stop and improvement < self.tor:
-                if verbose:
-                    print("Improvement halts, early stop training.")
-                break
-
-        self.score_model(len(params), len(y), losses[-1], E_gammas)
-        self.params = params
-        self.losses = losses[1:]
+            print("=" * 25)
+            print("Init params: {}".format(best_param))
+            print("=" * 25)
+        params = self.EM(y, n, best_param, max_iters=max_iters,
+                         early_stop=early_stop, verbose=verbose,
+                         n_tolerance=n_tolerance)
+        self.losses = losses + self.losses  # because we continue EM on the best init_params
         return params
 
     def sample(self, n_trials):
@@ -426,9 +461,9 @@ class MixtureBetaBinomial(ModelBase):
             raise Exception("Error: please fit the model or set params before sample()")
 
         alphas = self.params[:self.n_components]
-        betas  = self.params[self.n_components : 2*self.n_components]
-        pis    = self.params[2*self.n_components : 3*self.n_components]
-        
+        betas = self.params[self.n_components: 2 * self.n_components]
+        pis = self.params[2 * self.n_components: 3 * self.n_components]
+
         labels = np.random.choice(self.n_components, size=n_trials.shape, p=pis)
         ys_out = np.zeros(n_trials.shape, dtype=np.int32)
         for i in range(self.n_components):
@@ -461,14 +496,14 @@ if __name__ == "__main__":
         max_m_step_iter=250,
         tor=1e-6)
 
-    params = em_mbb.EM((ys, ns), max_iters=200,
-                       init_method="random", early_stop=False)
+    params = em_mbb.fit((ys, ns), max_iters=200,
+                        init_method="random", early_stop=False)
     print(params)
     print(em_mbb.model_scores)
-    params = em_mbb.EM((ys, ns), max_iters=200, init_method="kmeans")
+    params = em_mbb.fit((ys, ns), max_iters=200, init_method="kmeans")
     print(params)
     print(em_mbb.model_scores)
-    params = em_mbb.EM((ys, ns), max_iters=200, init_method="mixbin")
+    params = em_mbb.fit((ys, ns), max_iters=200, init_method="mixbin")
     print(params)
     print(em_mbb.model_scores)
     print(alphas, betas, pis)

@@ -64,7 +64,7 @@ class MixtureBinomial(ModelBase):
         n_components=2,
         tor=1e-20)
 
-        params = em_mb.EM((ys, ns), max_iters=250, early_stop=True)
+        params = em_mb.fit((ys, ns), max_iters=250, early_stop=True)
         print(params)
         print(p1, p2, pis)
 
@@ -97,11 +97,11 @@ class MixtureBinomial(ModelBase):
         Returns:
             np.array: expectation of the latent variables
         """
-        E_gammas = [None]*self.n_components
+        E_gammas = [None] * self.n_components
         for k in range(self.n_components):
-            p_k, pi_k = params[k], params[k+self.n_components]
+            p_k, pi_k = params[k], params[k + self.n_components]
             E_gammas[k] = y * np.log(p_k) + (n - y) * \
-                np.log(1 - p_k) + np.log(pi_k)
+                          np.log(1 - p_k) + np.log(pi_k)
 
         # normalize as they havn't been
         E_gammas = E_gammas - logsumexp(E_gammas, axis=0)
@@ -123,7 +123,7 @@ class MixtureBinomial(ModelBase):
         for k in range(self.n_components):
             E_gammas[k][E_gammas[k] == 0] = 1e-20
             params[k] = np.sum(y * E_gammas[k]) / np.sum(n * E_gammas[k])
-            params[k+self.n_components] = np.sum(E_gammas[k]) / N_samples
+            params[k + self.n_components] = np.sum(E_gammas[k]) / N_samples
         return params
 
     def log_likelihood_binomial(self, y, n, p, pi=1.0):
@@ -138,8 +138,8 @@ class MixtureBinomial(ModelBase):
         Returns:
             np.array: log likelihood of data
         """
-        return gammaln(n+1) - (gammaln(y+1) + gammaln(n-y+1)) \
-            + y * np.log(p) + (n - y) * np.log(1 - p) + np.log(pi)
+        return gammaln(n + 1) - (gammaln(y + 1) + gammaln(n - y + 1)) \
+               + y * np.log(p) + (n - y) * np.log(1 - p) + np.log(pi)
 
     def log_likelihood_mixture_bin(self, y, n, params):
         """log likelihood of dataset under mixture of binomial distribution
@@ -154,36 +154,29 @@ class MixtureBinomial(ModelBase):
         """
         logLik_mat = np.zeros((len(n), self.n_components), dtype=np.float)
         for k in range(self.n_components):
-            p_k, pi_k = params[k], params[k+self.n_components]
+            p_k, pi_k = params[k], params[k + self.n_components]
             logLik_mat[:, k] = self.log_likelihood_binomial(y, n, p_k, pi_k)
         return logsumexp(logLik_mat, axis=1).sum()
 
-    def EM(self, data, max_iters=250, early_stop=False, pseudocount=0.1, 
+    def EM(self, y, n, params, max_iters=250, early_stop=False, n_tolerance=10,
            verbose=False):
         """EM algorithim
 
         Args:
-            data (tuple of arrays): y, n: number of positive events and total number of trials respectively
+            y (np.array): number of positive events
+            n (np.array): total number of trials respectively
+            params (list): init model params
             max_iters (int, optional): maximum number of iterations for EM. Defaults to 250.
             early_stop (bool, optional): whether early stop training. Defaults to False.
+            n_tolerance (int): the max number of violations to trigger early stop.
             pseudocount (float) : add pseudocount if data is zero
             verbose (bool, optional): whether print training information. Defaults to False.
 
         Returns:
             np.array: trained parameters
         """
-        y, n = data
-        y, n = y[n > 0], n[n > 0] # remove zero trials
-        if np.sum(y == 0):
-            y = y.astype(float)
-            y[y == 0] = pseudocount
-
-        params = np.concatenate([np.random.uniform(0.2, 0.8, self.n_components),
-                                 np.random.uniform(0.4, 0.6, self.n_components)])
+        n_tol = n_tolerance
         losses = [sys.maxsize]
-
-        if verbose:
-            print("Init params: {}".format(params))
 
         for ith in range(max_iters):
 
@@ -197,20 +190,63 @@ class MixtureBinomial(ModelBase):
             losses.append(-self.log_likelihood_mixture_bin(y, n, params))
 
             if verbose:
-                print("="*10, "Iteration {}".format(ith+1), "="*10)
+                print("=" * 10, "Iteration {}".format(ith + 1), "=" * 10)
                 print("Current params: {}".format(params))
                 print("Negative LogLikelihood Loss: {}".format(losses[-1]))
-                print("="*25)
+                print("=" * 25)
 
             improvement = losses[-2] - losses[-1]
-            if early_stop and improvement < self.tor:
-                if verbose:
-                    print("Improvement halts, early stop training.")
-                break
+            if early_stop:
+                if improvement < self.tor:
+                    n_tol -= 1
+                else:
+                    n_tol = n_tolerance
+                if n_tol == 0:
+                    if verbose:
+                        print("Improvement halts, early stop training.")
+                    break
 
         self.score_model(len(params), len(y), losses[-1], E_gammas)
         self.params = params
         self.losses = losses[1:]
+        return params
+
+    def _param_init(self, y, n):
+        """Initialziation of model parameters
+
+        Args:
+            y (np.array): number of positive events
+            n (np.array): number of total trials
+        Returns:
+            np.array: initialized model parameters
+        """
+        return np.concatenate([np.random.uniform(0.2, 0.8, self.n_components),
+                               np.random.uniform(0.4, 0.6, self.n_components)])
+
+    def fit(self, data, max_iters=250, early_stop=False, pseudocount=0.1,
+            n_tolerance=10, verbose=False):
+        """Fit function
+
+        Args:
+            data (tuple of arrays): y, n: number of positive events and total number of trials respectively
+            max_iters (int, optional): maximum number of iterations for EM. Defaults to 250.
+            early_stop (bool, optional): whether early stop training. Defaults to False.
+            pseudocount (float) : add pseudocount if data is zero
+            n_tolerance (int): the max number of violations to trigger early stop.
+            verbose (bool, optional): whether print training information. Defaults to False.
+
+        Returns:
+            np.array: trained parameters
+        """
+        y, n = self._preprocess(data, pseudocount)
+        init_params = self._param_init(y, n)
+        if verbose:
+            print("=" * 25)
+            print("Init params: {}".format(init_params))
+            print("=" * 25)
+        params = self.EM(y, n, init_params, max_iters=max_iters,
+                         early_stop=early_stop, verbose=verbose,
+                         n_tolerance=n_tolerance)
         return params
 
     def sample(self, n_trials):
@@ -226,14 +262,14 @@ class MixtureBinomial(ModelBase):
             raise Exception("Error: please fit the model or set params before sample()")
 
         mus = self.params[:self.n_components]
-        pis = self.params[self.n_components : 2*self.n_components]
-        
+        pis = self.params[self.n_components: 2 * self.n_components]
+
         labels = np.random.choice(self.n_components, size=n_trials.shape, p=pis)
         ys_out = np.zeros(n_trials.shape, dtype=int)
         for i in range(self.n_components):
             _idx = np.where(labels == i)
             ys_out[_idx] = binom.rvs(n_trials[_idx].astype(np.int32), mus[i])
-        
+
         return ys_out
 
 
@@ -257,7 +293,7 @@ if __name__ == "__main__":
         n_components=2,
         tor=1e-20)
 
-    params = em_mb.EM((ys, ns), max_iters=250, early_stop=True)
+    params = em_mb.fit((ys, ns), max_iters=250, early_stop=True)
     print(params)
     print(p1, p2, pis)
     print(em_mb.model_scores)
