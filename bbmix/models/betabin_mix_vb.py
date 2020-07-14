@@ -269,7 +269,8 @@ class BetaBinMixVB():
         return _ELBO
 
     def fit(self, AD, DP, init_method='binomial', n_init=50, 
-        max_iter=200, min_iter=5, epsilon_conv=1e-2, verbose=True):
+        max_iter=200, min_iter=5, decreasing_stop=True,
+        epsilon_conv=1e-2, verbose=True):
         """Fit Vireo model with coordinate ascent
         For high dimentional data or high number of components, please run 
         with multiple initializations, e.g., 100 to avoid local optima, and
@@ -317,9 +318,13 @@ class BetaBinMixVB():
             ELBO[it] = _elbo[-1]
             if it > min_iter:
                 if (ELBO[it] - ELBO[it - 1]) < -epsilon_conv:
-                    if verbose:
-                        print("Warning: Lower bound decreases! %.2f to %.2f!\n"
-                              %(ELBO[it - 1], ELBO[it]))
+                    if decreasing_stop:
+                        print("Warning: stopped due to ELBO decreases! " +
+                                "%.2f to %.2f!" %(ELBO[it - 1], ELBO[it]))
+                    else:
+                        if verbose:
+                            print("Warning: stopped due to ELBO decreases! " +
+                                  "%.2f to %.2f!" %(ELBO[it - 1], ELBO[it]))                    
                 elif it == max_iter - 1:
                     if verbose:
                         print("Warning: VB did not converge!\n")
