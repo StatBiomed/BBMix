@@ -86,7 +86,7 @@ class MixtureBetaBinomial(ModelBase):
                  n_components=2,
                  max_m_step_iter=250,
                  tor=1e-6,
-                 n_init_searches=100
+                 n_init_searches=10
                  ):
         """Initialization method
 
