@@ -9,7 +9,6 @@ import warnings
 
 import numpy as np
 from scipy.special import gammaln, logsumexp
-from scipy.stats import bernoulli, binom
 
 from .model_base import ModelBase
 
@@ -43,30 +42,32 @@ class MixtureBinomial(ModelBase):
 
     Simulation experiment:
 
+        import numpy as np
         from scipy.stats import bernoulli, binom
-
+        from bbmix.models import MixtureBinomial
         n_samples = 2000
         n_trials = 1000
         pis = [0.6, 0.4]
         p1, p2 = 0.4, 0.8
-
+    
         gammars = bernoulli.rvs(pis[0], size=n_samples)
         n_pos_events = sum(gammars)
         n_neg_events = n_samples - n_pos_events
-
+    
         ys_of_type1 = binom.rvs(n_trials, p1, size=n_pos_events)
         ys_of_type2 = binom.rvs(n_trials, p2, size=n_neg_events)
-
+    
         ys = np.concatenate((ys_of_type1, ys_of_type2))
         ns = np.ones(n_samples, dtype=np.int) * n_trials
-
+    
         em_mb = MixtureBinomial(
-        n_components=2,
-        tor=1e-20)
-
+            n_components=2,
+            tor=1e-20)
+    
         params = em_mb.fit((ys, ns), max_iters=250, early_stop=True)
         print(params)
         print(p1, p2, pis)
+        print(em_mb.model_scores)
 
     """
 
@@ -274,6 +275,9 @@ class MixtureBinomial(ModelBase):
 
 
 if __name__ == "__main__":
+    import numpy as np
+    from scipy.stats import bernoulli, binom
+    from bbmix.models import MixtureBinomial
     n_samples = 2000
     n_trials = 1000
     pis = [0.6, 0.4]

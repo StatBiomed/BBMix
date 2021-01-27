@@ -13,9 +13,9 @@ def bic_criterion(k, n, nll):
     """Bayesian Information Criterion (BIC)
 
     Args:
-        k (int): the number of estimated parameters
-        n (int): the number of datapoints, i.e., sample size
-        nll (float): negative log likelihood of the dataset given the model
+        k (int/np.array): the number of estimated parameters
+        n (int/np.array): the number of datapoints, i.e., sample size
+        nll (float/np.array): negative log likelihood of the dataset given the model
     returns:
         float: BIC score
     """
@@ -31,7 +31,7 @@ def entropy_criterion(probs):
     Returns:
         float: sum of entropy of all the random varaibles
     """
-    return np.sum(entropy(probs, axis=1))
+    return np.sum(entropy(probs, axis=-1), axis=-1)
 
 
 def icl_criterion(k, n, nll, probs):

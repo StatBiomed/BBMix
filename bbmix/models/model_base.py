@@ -40,19 +40,20 @@ class ModelBase:
         self.model_scores = {"BIC": bic_score, "ICL": icl_score}
         return self.model_scores
 
-    def _preprocess(self, data, pseudocount=0.1):
+    def _preprocess(self, data, pseudocount=0.1, min_n=10):
         """Preprocess inputs
 
         Args:
             data (tuple of arrays): y, n: number of positive events and total number of trials respectively
             pseudocount (float) : add pseudocount if data is zero
+            min_n (int): minimum number of samples for filtering
 
         Returns
             tuple of np.array
         """
         y, n = data
-        y, n = y[n > 10], n[n > 10]  # filter extremes
-        if np.any(0):
+        y, n = y[n > min_n], n[n > min_n]  # filter extremes
+        if np.any(y == 0):
             y = y.astype(float)
             y[y == 0] = pseudocount
         return y, n
