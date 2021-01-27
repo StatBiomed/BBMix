@@ -52,7 +52,7 @@ class ModelBase:
             tuple of np.array
         """
         y, n = data
-        y, n = y[n > min_n], n[n > min_n]  # filter extremes
+        # y, n = y[n > min_n], n[n > min_n]  # filter extremes
         if np.any(y == 0):
             y = y.astype(float)
             y[y == 0] = pseudocount
