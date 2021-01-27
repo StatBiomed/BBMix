@@ -260,7 +260,7 @@ class MixtureBinomialSparseBatch(ModelBase):
         bic_score = bic_criterion(k, valid_row_sizes, nll)
         entropy_score = aggregate_by_batch(
             probs, valid_row_sizes, 
-            agg_fun=lambda probs: entropy_criterion(probs)
+            agg_fun=lambda probs: entropy_criterion(probs.T)
             )
         icl_score = bic_score + entropy_score
         self.model_scores = {"BIC": bic_score, "ICL": icl_score}
@@ -350,7 +350,7 @@ def aggregate_by_batch(values, valid_row_sizes, agg_fun=np.sum, res_array=None):
     batch_res = res_array if res_array else np.empty(batch_size)
     for ith, smp_sz in enumerate(valid_row_sizes):
         right = left + smp_sz
-        batch_res[ith] = agg_fun(values[left:right].T)
+        batch_res[ith] = agg_fun(values[left:right])
         left = right
     return batch_res
     
