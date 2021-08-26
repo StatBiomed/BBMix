@@ -239,6 +239,8 @@ class MixtureBinomial(ModelBase):
         Returns:
             np.array: trained parameters
         """
+        y, n = data
+        self.nzero_prop = np.sum(y > 0)/np.shape(y)[0]
         y, n = self._preprocess(data, pseudocount)
 
         init_params = self._param_init(y, n)
@@ -249,6 +251,8 @@ class MixtureBinomial(ModelBase):
         params = self.EM(y, n, init_params, max_iters=max_iters,
                          early_stop=early_stop, verbose=verbose,
                          n_tolerance=n_tolerance)
+        if self.n_components == 2 and np.abs(params[0] - params[1]) < 1e-4 and verbose:
+            print("Colapsed to one component, please check proportion of non-zero counts.")
         return params
 
     def sample(self, n_trials):
