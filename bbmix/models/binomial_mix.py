@@ -206,7 +206,7 @@ class MixtureBinomial(ModelBase):
                     if verbose:
                         print("Improvement halts, early stop training.")
                     break
-
+             
         self.score_model(len(params), len(y), losses[-1], E_gammas)
         self.params = params
         self.losses = losses[1:]
@@ -221,9 +221,9 @@ class MixtureBinomial(ModelBase):
         Returns:
             np.array: initialized model parameters
         """
-        return np.concatenate([np.random.uniform(0.2, 0.8, self.n_components),
+        return np.concatenate([np.random.uniform(0.5, 0.51, self.n_components),
                                np.random.uniform(0.4, 0.6, self.n_components)])
-
+        
     def fit(self, data, max_iters=250, early_stop=False, pseudocount=0.1,
             n_tolerance=10, verbose=False):
         """Fit function
@@ -240,6 +240,7 @@ class MixtureBinomial(ModelBase):
             np.array: trained parameters
         """
         y, n = self._preprocess(data, pseudocount)
+
         init_params = self._param_init(y, n)
         if verbose:
             print("=" * 25)
