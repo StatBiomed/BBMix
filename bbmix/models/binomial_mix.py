@@ -221,9 +221,9 @@ class MixtureBinomial(ModelBase):
         Returns:
             np.array: initialized model parameters
         """
-        return np.concatenate([np.random.uniform(0.5, 0.51, self.n_components),
+        return np.concatenate([np.random.uniform(0.49, 0.51, self.n_components),
                                np.random.uniform(0.4, 0.6, self.n_components)])
-        
+                
     def fit(self, data, max_iters=250, early_stop=False, pseudocount=0.1,
             n_tolerance=10, verbose=False):
         """Fit function
