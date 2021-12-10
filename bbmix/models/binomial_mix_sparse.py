@@ -276,7 +276,7 @@ class MixtureBinomialSparseBatch(ModelBase):
         Returns:
             np.array (2-d): initialized model parameters
         """
-        return np.concatenate([np.random.uniform(0.2, 0.8, (batch_size, self.n_components)),
+        return np.concatenate([np.random.uniform(0.49, 0.51, (batch_size, self.n_components)),
                                np.random.uniform(0.4, 0.6, (batch_size, self.n_components))], axis=1)
 
     def fit(self, data, valid_row_sizes, max_iters=250, early_stop=False, pseudocount=0.1,
