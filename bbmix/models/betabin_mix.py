@@ -280,7 +280,7 @@ class MixtureBetaBinomial(ModelBase):
             random_state=44
         )
         kmeans.fit(proportions.reshape(-1, 1))
-        gammars = np.zeros((sample_size, self.n_components), dtype=np.float)
+        gammars = np.zeros((sample_size, self.n_components), dtype=float)
         # deterministic gammars, to be perturbed
         gammars[range(sample_size), kmeans.labels_] = 1.0
 

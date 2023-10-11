@@ -167,7 +167,7 @@ class MixtureBinomialSparseBatch(ModelBase):
             1-d float array: log likelihoods of the batch samples
         """
         params = repeated_params
-        logLik_mat = np.zeros((self.n_components, y.shape[0]), dtype=np.float)
+        logLik_mat = np.zeros((self.n_components, y.shape[0]), dtype=float)
         for k in range(self.n_components):
             p_k, pi_k = params[:, k], params[:, k + self.n_components]
             logLik_mat[k] = self.log_likelihood_binomial(y, n, p_k, pi_k)

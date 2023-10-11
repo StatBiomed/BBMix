@@ -153,7 +153,7 @@ class MixtureBinomial(ModelBase):
         Returns:
             float: log likelihood of the dataset
         """
-        logLik_mat = np.zeros((len(n), self.n_components), dtype=np.float)
+        logLik_mat = np.zeros((len(n), self.n_components), dtype=float)
         for k in range(self.n_components):
             p_k, pi_k = params[k], params[k + self.n_components]
             logLik_mat[:, k] = self.log_likelihood_binomial(y, n, p_k, pi_k)
